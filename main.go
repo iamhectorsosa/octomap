@@ -27,6 +27,7 @@ var (
 )
 
 func main() {
+	// TODO: Abstract this into a function
 	if len(os.Args) < 2 {
 		fmt.Println("Usage: go run . user/repo [--dir DIR] [--branch BRANCH] [--include .go,.proto] [--exclude .mod,.sum]")
 		os.Exit(1)
@@ -51,17 +52,10 @@ func main() {
 	exclude := strings.Split(*excludeSuffixes, ",")
 
 	if len(include) == 1 && include[0] == "" {
-		include = []string{}
+		include = nil
 	}
 	if len(exclude) == 1 && exclude[0] == "" {
-		exclude = []string{}
-	}
-
-	if len(include) == 1 && include[0] == "" {
-		include = []string{}
-	}
-	if len(exclude) == 1 && exclude[0] == "" {
-		exclude = []string{}
+		exclude = nil
 	}
 
 	if _, err := tea.NewProgram(newModel(repo, *dir, *branch, include, exclude)).Run(); err != nil {
@@ -70,17 +64,21 @@ func main() {
 	}
 }
 
+type config struct {
+	repo    string
+	dir     string
+	branch  string
+	include []string
+	exclude []string
+}
+
 type result struct {
 	directory string
 }
 
 type model struct {
-	repo     string
-	dir      string
-	branch   string
-	include  []string
-	exclude  []string
-	ch       chan tea.Msg
+	config   config
+	ch       chan interface{}
 	results  []result
 	spinner  spinner.Model
 	complete bool
@@ -92,15 +90,19 @@ func newModel(repo, dir, branch string, include, exclude []string) model {
 	sp.Spinner = spinner.Dot
 	sp.Style = lipgloss.NewStyle().Foreground(lipgloss.Color("205"))
 
-	return model{
+	config := config{
 		repo:    repo,
 		dir:     dir,
 		branch:  branch,
 		include: include,
 		exclude: exclude,
+	}
+
+	return model{
+		config:  config,
 		spinner: sp,
 		results: []result{},
-		ch:      make(chan tea.Msg),
+		ch:      make(chan interface{}),
 	}
 }
 
@@ -126,7 +128,6 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if len(m.results) > 10 {
 			m.results = m.results[1:]
 		}
-
 		return m, m.runPretendProcess()
 	case processEndMsg:
 		m.complete = true
@@ -166,25 +167,28 @@ type (
 func (m model) runPretendProcess() tea.Cmd {
 	return func() tea.Msg {
 		if len(m.results) == 0 {
-			go checkRepo(m.repo, m.dir, m.branch, m.include, m.exclude, m.ch)
+			go checkRepo(m.config.repo, m.config.dir, m.config.branch, m.config.include, m.config.exclude, m.ch, 25*time.Millisecond)
 		}
 
 		msg, ok := <-m.ch
 		if !ok {
 			return processEndMsg{}
 		}
-		return msg
+		return processFinishedMsg(msg.(string))
 	}
 }
 
+// TODO: Add outputDir as a flag
 const (
 	dataOutputFile   = ""
 	githubTarballURL = "https://github.com/%s/archive/refs/heads/%s.tar.gz"
 )
 
-func checkRepo(inputRepo, inputTargetDir, inputBranch string, include, exclude []string, ch chan<- tea.Msg) {
+// TODO: Rename function
+func checkRepo(inputRepo, inputTargetDir, inputBranch string, include, exclude []string, ch chan<- interface{}, delay time.Duration) {
 	defer close(ch)
 
+	// TODO: Create a validate arguments function
 	repoParts := strings.Split(inputRepo, "/")
 	if len(repoParts) != 2 {
 		log.Fatalf("Invalid repository format. Expected 'user/repo', got: %q", inputRepo)
@@ -208,83 +212,12 @@ func checkRepo(inputRepo, inputTargetDir, inputBranch string, include, exclude [
 		log.Fatalf("Failed to fetch tarball: %s", resp.Status)
 	}
 
-	gzipReader, err := gzip.NewReader(resp.Body)
+	data, err := tarballReader(targetDir, include, exclude, resp.Body, ch, delay)
 	if err != nil {
-		log.Fatalf("Error decompressing tarball: %v", err)
-	}
-	defer gzipReader.Close()
-
-	data := make(map[string]interface{})
-
-	tarReader := tar.NewReader(gzipReader)
-	for {
-		hdr, err := tarReader.Next()
-		if err == io.EOF {
-			break
-		}
-		if err != nil {
-			log.Fatalf("Error reading tarball: %v", err)
-		}
-
-		if strings.HasPrefix(hdr.Name, targetDir) {
-			relativePath := strings.TrimPrefix(hdr.Name, targetDir+"/")
-
-			if relativePath == "" {
-				continue
-			}
-
-			shouldProcess := true
-
-			if len(include) > 0 {
-				shouldProcess = false
-				for _, suffix := range include {
-					if strings.HasSuffix(relativePath, suffix) {
-						shouldProcess = true
-						break
-					}
-				}
-			}
-			if shouldProcess && len(exclude) > 0 {
-				for _, suffix := range exclude {
-					if strings.HasSuffix(relativePath, suffix) {
-						shouldProcess = false
-						break
-					}
-				}
-			}
-
-			if shouldProcess {
-				var buf bytes.Buffer
-				if _, err := io.Copy(&buf, tarReader); err != nil {
-					log.Printf("Warning: error reading file %s: %v", hdr.Name, err)
-					continue
-				}
-
-				pathParts := strings.Split(relativePath, "/")
-
-				current := data
-				for i, part := range pathParts {
-					if i == len(pathParts)-1 {
-						current[part] = buf.String()
-						time.Sleep(25 * time.Millisecond)
-						ch <- processFinishedMsg(relativePath)
-					} else {
-						if _, exists := current[part]; !exists {
-							current[part] = make(map[string]interface{})
-						}
-
-						var ok bool
-						current, ok = current[part].(map[string]interface{})
-						if !ok {
-							log.Printf("Warning: unexpected structure for %s", hdr.Name)
-							break
-						}
-					}
-				}
-			}
-		}
+		log.Fatalf("error=%v", err)
 	}
 
+	// TODO: Create encoder function
 	if dataOutputFile != "" {
 		ext := filepath.Ext(dataOutputFile)
 		if ext != "" {
@@ -314,4 +247,80 @@ func checkRepo(inputRepo, inputTargetDir, inputBranch string, include, exclude [
 	if err := encoder.Encode(data); err != nil {
 		log.Fatalf("Error encoding JSON: %v", err)
 	}
+}
+
+func tarballReader(dir string, include, exclude []string, r io.Reader, ch chan<- interface{}, delay time.Duration) (map[string]interface{}, error) {
+	gzipReader, err := gzip.NewReader(r)
+	if err != nil {
+		return nil, fmt.Errorf("error decompressing tarbal: %v", err)
+	}
+	defer gzipReader.Close()
+
+	data := make(map[string]interface{})
+
+	tarReader := tar.NewReader(gzipReader)
+	for {
+		hdr, err := tarReader.Next()
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			return nil, fmt.Errorf("error reading tarball: %v", err)
+		}
+
+		if hdr.Typeflag == tar.TypeDir || !strings.HasPrefix(hdr.Name, dir) {
+			continue
+		}
+
+		relativePath := strings.TrimPrefix(hdr.Name, dir+"/")
+
+		shouldProcess := true
+		if len(include) > 0 {
+			shouldProcess = false
+			for _, suffix := range include {
+				if strings.HasSuffix(relativePath, suffix) {
+					shouldProcess = true
+					break
+				}
+			}
+		}
+		if shouldProcess && len(exclude) > 0 {
+			for _, suffix := range exclude {
+				if strings.HasSuffix(relativePath, suffix) {
+					shouldProcess = false
+					break
+				}
+			}
+		}
+
+		if shouldProcess {
+			var buf bytes.Buffer
+			if _, err := io.Copy(&buf, tarReader); err != nil {
+				return nil, fmt.Errorf("error reading file: %s - %v", hdr.Name, err)
+			}
+
+			pathParts := strings.Split(relativePath, "/")
+
+			current := data
+			for i, part := range pathParts {
+				if i == len(pathParts)-1 {
+					current[part] = buf.String()
+					time.Sleep(delay)
+					ch <- relativePath
+				} else {
+					if _, exists := current[part]; !exists {
+						current[part] = make(map[string]interface{})
+					}
+
+					var ok bool
+					current, ok = current[part].(map[string]interface{})
+					if !ok {
+						return nil, fmt.Errorf("unexpected structure found on: %s", hdr.Name)
+					}
+				}
+			}
+		}
+	}
+
+	return data, nil
 }
