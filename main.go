@@ -26,26 +26,53 @@ var (
 	checkMark = lipgloss.NewStyle().Foreground(lipgloss.Color("42")).SetString("✓")
 )
 
-func main() {
-	// TODO: Abstract this into a function
+type config struct {
+	repo    string
+	dir     string
+	branch  string
+	url     string
+	output  string
+	include []string
+	exclude []string
+}
+
+func resolvePath(path string) (string, error) {
+	path = os.ExpandEnv(path)
+
+	if len(path) > 2 && path[:2] == "~/" {
+		home, err := os.UserHomeDir()
+		if err != nil {
+			return "", fmt.Errorf("reading home dir: %v", err)
+		}
+		return filepath.Join(home, path[2:]), nil
+	}
+
+	return path, nil
+}
+
+func getConfig() (cfg *config, err error) {
 	if len(os.Args) < 2 {
-		fmt.Println("Usage: go run . user/repo [--dir DIR] [--branch BRANCH] [--include .go,.proto] [--exclude .mod,.sum]")
-		os.Exit(1)
+		return nil, fmt.Errorf("Usage: user/repo [--dir] [--branch] [--include] [--exclude] [--output]")
 	}
 
 	repo := os.Args[1]
+	repoParts := strings.Split(repo, "/")
+	if len(repoParts) != 2 {
+		return nil, fmt.Errorf("error user/repo format: %s", repo)
+	}
 
 	fs := flag.NewFlagSet("flags", flag.ContinueOnError)
+	fs.SetOutput(io.Discard)
 
 	dir := fs.String("dir", "", "Target directory within the repository")
 	branch := fs.String("branch", "main", "Branch to clone (default: main)")
 	includeSuffixes := fs.String("include", "", "Comma-separated list of included file extensions")
 	excludeSuffixes := fs.String("exclude", "", "Comma-separated list of excluded file extensions")
+	output := fs.String("output", "", "Output directory")
 
-	err := fs.Parse(os.Args[2:])
+	err = fs.Parse(os.Args[2:])
 	if err != nil {
-		fmt.Println("Error parsing flags:", err)
-		os.Exit(1)
+		return nil, fmt.Errorf("error parsing flags: %v", err)
 	}
 
 	include := strings.Split(*includeSuffixes, ",")
@@ -58,18 +85,55 @@ func main() {
 		exclude = nil
 	}
 
-	if _, err := tea.NewProgram(newModel(repo, *dir, *branch, include, exclude)).Run(); err != nil {
+	repoName := repoParts[1]
+	url := fmt.Sprintf("https://github.com/%s/archive/refs/heads/%s.tar.gz", repo, *branch)
+	resolvedDir := fmt.Sprintf("%s-%s", repoName, *branch)
+
+	if *dir != "" {
+		resolvedDir += "/" + *dir
+	}
+
+	resolvedPath, err := resolvePath(*output)
+	if err != nil {
+		return nil, fmt.Errorf("cannot resolve path: %v", err)
+	}
+
+	if resolvedPath != "" {
+		ext := filepath.Ext(resolvedPath)
+		if ext != "" {
+			return nil, fmt.Errorf("invalid directory format: %s", *output)
+		}
+
+		_, err = os.Stat(resolvedPath)
+		if err != nil {
+			if os.IsNotExist(err) {
+				return nil, fmt.Errorf("directory doesn't exist: %v", err)
+			}
+			return nil, fmt.Errorf("error checking directory: %v", err)
+		}
+	}
+
+	return &config{
+		repo:    repoName,
+		dir:     resolvedDir,
+		url:     url,
+		branch:  *branch,
+		include: include,
+		exclude: exclude,
+		output:  resolvedPath,
+	}, nil
+}
+
+func main() {
+	cfg, err := getConfig()
+	if err != nil {
+		fmt.Println("Error handling arguments")
+		os.Exit(1)
+	}
+	if _, err := tea.NewProgram(newModel(cfg)).Run(); err != nil {
 		fmt.Println("Error starting Bubble Tea program:", err)
 		os.Exit(1)
 	}
-}
-
-type config struct {
-	repo    string
-	dir     string
-	branch  string
-	include []string
-	exclude []string
 }
 
 type result struct {
@@ -85,21 +149,13 @@ type model struct {
 	quitting bool
 }
 
-func newModel(repo, dir, branch string, include, exclude []string) model {
+func newModel(cfg *config) model {
 	sp := spinner.New()
 	sp.Spinner = spinner.Dot
 	sp.Style = lipgloss.NewStyle().Foreground(lipgloss.Color("205"))
 
-	config := config{
-		repo:    repo,
-		dir:     dir,
-		branch:  branch,
-		include: include,
-		exclude: exclude,
-	}
-
 	return model{
-		config:  config,
+		config:  *cfg,
 		spinner: sp,
 		results: []result{},
 		ch:      make(chan interface{}),
@@ -167,7 +223,7 @@ type (
 func (m model) runPretendProcess() tea.Cmd {
 	return func() tea.Msg {
 		if len(m.results) == 0 {
-			go checkRepo(m.config.repo, m.config.dir, m.config.branch, m.config.include, m.config.exclude, m.ch, 25*time.Millisecond)
+			go checkRepo(m.config.repo, m.config.url, m.config.dir, m.config.output, m.config.include, m.config.exclude, m.ch, 25*time.Millisecond)
 		}
 
 		msg, ok := <-m.ch
@@ -178,31 +234,11 @@ func (m model) runPretendProcess() tea.Cmd {
 	}
 }
 
-// TODO: Add outputDir as a flag
-const (
-	dataOutputFile   = ""
-	githubTarballURL = "https://github.com/%s/archive/refs/heads/%s.tar.gz"
-)
-
 // TODO: Rename function
-func checkRepo(inputRepo, inputTargetDir, inputBranch string, include, exclude []string, ch chan<- interface{}, delay time.Duration) {
+func checkRepo(repo, url, dir, output string, include, exclude []string, ch chan<- interface{}, delay time.Duration) {
 	defer close(ch)
 
-	// TODO: Create a validate arguments function
-	repoParts := strings.Split(inputRepo, "/")
-	if len(repoParts) != 2 {
-		log.Fatalf("Invalid repository format. Expected 'user/repo', got: %q", inputRepo)
-	}
-
-	repo := repoParts[1]
-	tarballURL := fmt.Sprintf(githubTarballURL, inputRepo, inputBranch)
-	targetDir := fmt.Sprintf("%s-%s", repo, inputBranch)
-
-	if inputTargetDir != "" {
-		targetDir += "/" + inputTargetDir
-	}
-
-	resp, err := http.Get(tarballURL)
+	resp, err := http.Get(url)
 	if err != nil {
 		log.Fatalf("Error fetching tarball: %v", err)
 	}
@@ -212,29 +248,14 @@ func checkRepo(inputRepo, inputTargetDir, inputBranch string, include, exclude [
 		log.Fatalf("Failed to fetch tarball: %s", resp.Status)
 	}
 
-	data, err := tarballReader(targetDir, include, exclude, resp.Body, ch, delay)
+	data, err := tarballReader(dir, include, exclude, resp.Body, ch, delay)
 	if err != nil {
 		log.Fatalf("error=%v", err)
 	}
 
 	// TODO: Create encoder function
-	if dataOutputFile != "" {
-		ext := filepath.Ext(dataOutputFile)
-		if ext != "" {
-			log.Fatalf("Has to be a valid path without extensions")
-		}
-
-		_, err = os.Stat(dataOutputFile)
-		if err != nil {
-			if os.IsNotExist(err) {
-				log.Fatalf("directory does not exist: %v", dataOutputFile)
-			}
-			log.Fatalf("error checking directory: %v", err)
-		}
-	}
-
 	currentDateTime := time.Now().Format("20060102_150405")
-	newFileName := fmt.Sprintf("%s%s%s.json", dataOutputFile, repo, currentDateTime)
+	newFileName := fmt.Sprintf("%s%s%s.json", output, repo, currentDateTime)
 
 	f, err := os.Create(newFileName)
 	if err != nil {
