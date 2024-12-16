@@ -1,104 +1,16 @@
-package main
+package repository_test
 
 import (
 	"archive/tar"
 	"bytes"
 	"compress/gzip"
 	"io"
-	"os"
 	"testing"
 
+	"github.com/iamhectorsosa/octomap/internal/entity"
+	"github.com/iamhectorsosa/octomap/internal/repository"
 	"github.com/stretchr/testify/assert"
 )
-
-func TestGetConfig(t *testing.T) {
-	tests := []struct {
-		expectedConfig *config
-		name           string
-		args           []string
-		expectedErr    bool
-	}{
-		{
-			name: "No optional flags, default branch",
-			args: []string{"cmd", "user/repo"},
-			expectedConfig: &config{
-				repo:    "repo",
-				dir:     "repo-main",
-				branch:  "main",
-				url:     "https://github.com/user/repo/archive/refs/heads/main.tar.gz",
-				include: nil,
-				exclude: nil,
-				output:  "",
-			},
-			expectedErr: false,
-		},
-		{
-			name:           "No optional flags, bad user/repo",
-			args:           []string{"cmd", "userrepo"},
-			expectedConfig: nil,
-			expectedErr:    true,
-		},
-		{
-			name: "Valid arguments with all flags",
-			args: []string{"cmd", "user/repo", "--dir", "src", "--branch", "develop", "--include", ".go,.proto", "--exclude", ".mod,.sum", "--output", "~/documents"},
-			expectedConfig: &config{
-				repo:    "repo",
-				dir:     "repo-develop/src",
-				branch:  "develop",
-				url:     "https://github.com/user/repo/archive/refs/heads/develop.tar.gz",
-				include: []string{".go", ".proto"},
-				exclude: []string{".mod", ".sum"},
-				output:  "/Users/hectorsosa/documents",
-			},
-			expectedErr: false,
-		},
-		{
-			name: "Empty include and exclude flags",
-			args: []string{"cmd", "user/repo", "--include", "", "--exclude", ""},
-			expectedConfig: &config{
-				repo:    "repo",
-				dir:     "repo-main",
-				branch:  "main",
-				url:     "https://github.com/user/repo/archive/refs/heads/main.tar.gz",
-				include: nil,
-				exclude: nil,
-				output:  "",
-			},
-			expectedErr: false,
-		},
-		{
-			name:           "Missing repository argument",
-			args:           []string{"cmd"},
-			expectedConfig: nil,
-			expectedErr:    true,
-		},
-		{
-			name:           "Error in flag parsing",
-			args:           []string{"cmd", "user/repo", "--unknown", "value"},
-			expectedConfig: nil,
-			expectedErr:    true,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			originalArgs := os.Args
-			defer func() { os.Args = originalArgs }()
-
-			os.Args = tt.args
-			cfg, err := getConfig()
-
-			if !tt.expectedErr {
-				assert.NotNil(t, cfg, "Expected config to be non-nil")
-				assert.NoError(t, err, "Expected no error, but got one")
-				assert.Equal(t, tt.expectedConfig, cfg, "Config mismatch")
-			} else {
-				assert.Error(t, err, "Expected an error, but got none")
-				assert.Nil(t, cfg, "Expected config to be nil")
-			}
-		})
-	}
-}
 
 func TestTarballReader(t *testing.T) {
 	tests := []struct {
@@ -197,7 +109,7 @@ func TestTarballReader(t *testing.T) {
 				t.Fatalf("Failed to create test tarball: %v", err)
 			}
 
-			ch := make(chan interface{}, len(tt.files))
+			ch := make(chan entity.Update, len(tt.files))
 			done := make(chan struct{})
 
 			var actualPaths []string
@@ -205,11 +117,11 @@ func TestTarballReader(t *testing.T) {
 			go func() {
 				defer close(done)
 				for path := range ch {
-					actualPaths = append(actualPaths, path.(string))
+					actualPaths = append(actualPaths, path.Description)
 				}
 			}()
 
-			data, err := tarballReader(tt.dir, tt.include, tt.exclude, r, ch, 0)
+			data, err := repository.TarballReader(tt.dir, tt.include, tt.exclude, r, ch, 0)
 			close(ch)
 
 			if err != nil {
