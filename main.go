@@ -12,7 +12,7 @@ import (
 func main() {
 	cfg, err := config.New(os.Args)
 	if err != nil {
-		fmt.Printf("Error handling arguments, %v", err)
+		fmt.Printf("%v\n", err)
 		os.Exit(1)
 	}
 

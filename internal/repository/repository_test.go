@@ -32,7 +32,7 @@ func TestTarballReader(t *testing.T) {
 			dir:           "",
 			include:       nil,
 			exclude:       nil,
-			expectedPaths: []string{"dir/file1.txt", "dir/file2.go"},
+			expectedPaths: []string{"mapping: dir/file1.txt", "mapping: dir/file2.go"},
 			expectedData: map[string]interface{}{
 				"dir": map[string]interface{}{
 					"file1.txt": "Content 1",
@@ -49,7 +49,7 @@ func TestTarballReader(t *testing.T) {
 			dir:            "dir",
 			include:        []string{".txt"},
 			exclude:        nil,
-			expectedPaths:  []string{"file1.txt"},
+			expectedPaths:  []string{"mapping: file1.txt"},
 			expectedErrors: nil,
 			expectedData: map[string]interface{}{
 				"file1.txt": "Content 1",
@@ -64,7 +64,7 @@ func TestTarballReader(t *testing.T) {
 			dir:            "dir",
 			include:        nil,
 			exclude:        []string{".go"},
-			expectedPaths:  []string{"file1.txt"},
+			expectedPaths:  []string{"mapping: file1.txt"},
 			expectedErrors: nil,
 			expectedData: map[string]interface{}{
 				"file1.txt": "Content 1",
@@ -80,7 +80,7 @@ func TestTarballReader(t *testing.T) {
 			dir:            "dir",
 			include:        []string{".go", ".txt"},
 			exclude:        []string{"file1.txt"},
-			expectedPaths:  []string{"file2.go", "file3.go"},
+			expectedPaths:  []string{"mapping: file2.go", "mapping: file3.go"},
 			expectedErrors: nil,
 			expectedData: map[string]interface{}{
 				"file2.go": "Content 2",
@@ -121,7 +121,13 @@ func TestTarballReader(t *testing.T) {
 				}
 			}()
 
-			data, err := repository.TarballReader(tt.dir, tt.include, tt.exclude, r, ch, 0)
+			cfg := &entity.Config{
+				Dir:     tt.dir,
+				Include: tt.include,
+				Exclude: tt.exclude,
+			}
+
+			data, err := repository.TarballReader(cfg, r, ch, 0)
 			close(ch)
 
 			if err != nil {

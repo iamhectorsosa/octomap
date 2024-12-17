@@ -15,10 +15,10 @@ import (
 	"github.com/iamhectorsosa/octomap/internal/entity"
 )
 
-func ProcessRepo(repo, url, dir, output string, include, exclude []string, ch chan<- entity.Update, delay time.Duration) {
+func ProcessRepo(cfg *entity.Config, ch chan<- entity.Update, delay time.Duration) {
 	defer close(ch)
 
-	resp, err := http.Get(url)
+	resp, err := http.Get(cfg.Url)
 	if err != nil {
 		ch <- entity.Update{
 			Description: "Request error getting tarball",
@@ -31,12 +31,12 @@ func ProcessRepo(repo, url, dir, output string, include, exclude []string, ch ch
 	if resp.StatusCode != http.StatusOK {
 		ch <- entity.Update{
 			Description: fmt.Sprintf("Request error getting tarbal with status code: %d", resp.StatusCode),
-			Err:         fmt.Errorf("status code: %d", resp.StatusCode),
+			Err:         fmt.Errorf("Status code: %d", resp.StatusCode),
 		}
 		return
 	}
 
-	data, err := TarballReader(dir, include, exclude, resp.Body, ch, delay)
+	data, err := TarballReader(cfg, resp.Body, ch, delay)
 	if err != nil {
 		ch <- entity.Update{
 			Description: fmt.Sprintf("Tarball error: %v", err),
@@ -45,7 +45,13 @@ func ProcessRepo(repo, url, dir, output string, include, exclude []string, ch ch
 		return
 	}
 
-	f, err := os.Create(fmt.Sprintf("%s%s%s.json", output, repo, time.Now().Format("20060102_150405")))
+	filePath := fmt.Sprintf("%s%s.json", cfg.RepoName, time.Now().Format("20060102_150405"))
+
+	if cfg.Output != "" {
+		filePath = fmt.Sprintf("%s/%s", cfg.Output, filePath)
+	}
+
+	f, err := os.Create(filePath)
 	if err != nil {
 		ch <- entity.Update{
 			Description: fmt.Sprintf("Output file error: %v", err),
@@ -64,19 +70,22 @@ func ProcessRepo(repo, url, dir, output string, include, exclude []string, ch ch
 		}
 		return
 	}
+
+	ch <- entity.Update{
+		Description: fmt.Sprintf("generating report: %s", filePath),
+		Err:         nil,
+	}
 }
 
 func TarballReader(
-	dir string,
-	include,
-	exclude []string,
+	cfg *entity.Config,
 	r io.Reader,
 	ch chan<- entity.Update,
 	delay time.Duration,
 ) (map[string]interface{}, error) {
 	gzipReader, err := gzip.NewReader(r)
 	if err != nil {
-		return nil, fmt.Errorf("error decompressing tarbal: %v", err)
+		return nil, fmt.Errorf("Error decompressing tarbal: %v", err)
 	}
 	defer gzipReader.Close()
 
@@ -89,27 +98,27 @@ func TarballReader(
 			break
 		}
 		if err != nil {
-			return nil, fmt.Errorf("error reading tarball: %v", err)
+			return nil, fmt.Errorf("Error reading tarball: %v", err)
 		}
 
-		if hdr.Typeflag == tar.TypeDir || !strings.HasPrefix(hdr.Name, dir) {
+		if hdr.Typeflag == tar.TypeDir || !strings.HasPrefix(hdr.Name, cfg.Dir) {
 			continue
 		}
 
-		relativePath := strings.TrimPrefix(hdr.Name, dir+"/")
+		relativePath := strings.TrimPrefix(hdr.Name, cfg.Dir+"/")
 
 		shouldProcess := true
-		if len(include) > 0 {
+		if len(cfg.Include) > 0 {
 			shouldProcess = false
-			for _, suffix := range include {
+			for _, suffix := range cfg.Include {
 				if strings.HasSuffix(relativePath, suffix) {
 					shouldProcess = true
 					break
 				}
 			}
 		}
-		if shouldProcess && len(exclude) > 0 {
-			for _, suffix := range exclude {
+		if shouldProcess && len(cfg.Exclude) > 0 {
+			for _, suffix := range cfg.Exclude {
 				if strings.HasSuffix(relativePath, suffix) {
 					shouldProcess = false
 					break
@@ -120,7 +129,7 @@ func TarballReader(
 		if shouldProcess {
 			var buf bytes.Buffer
 			if _, err := io.Copy(&buf, tarReader); err != nil {
-				return nil, fmt.Errorf("error reading file: %s - %v", hdr.Name, err)
+				return nil, fmt.Errorf("Error reading file: %s - %v", hdr.Name, err)
 			}
 
 			pathParts := strings.Split(relativePath, "/")
@@ -131,7 +140,7 @@ func TarballReader(
 					current[part] = buf.String()
 					time.Sleep(delay)
 					ch <- entity.Update{
-						Description: relativePath,
+						Description: fmt.Sprintf("mapping: %s", relativePath),
 						Err:         nil,
 					}
 				} else {
@@ -142,7 +151,7 @@ func TarballReader(
 					var ok bool
 					current, ok = current[part].(map[string]interface{})
 					if !ok {
-						return nil, fmt.Errorf("unexpected structure found on: %s", hdr.Name)
+						return nil, fmt.Errorf("Unexpected structure found on: %s", hdr.Name)
 					}
 				}
 			}

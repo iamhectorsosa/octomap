@@ -8,18 +8,40 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/charmbracelet/lipgloss"
 	"github.com/iamhectorsosa/octomap/internal/entity"
+)
+
+var errorHrd = lipgloss.NewStyle().
+	SetString("ERROR").
+	Bold(true).
+	Foreground(lipgloss.Color("204"))
+
+var hintHrd = lipgloss.NewStyle().
+	SetString("HINT").
+	Bold(true)
+
+const (
+	missingArguments     = "missing arguments"
+	missingArgumentsHint = "user/repo [--dir] [--branch] [--include] [--exclude] [--output]"
+	invalidUserRepo      = "invalid user/repo"
+	invalidUserRepoHint  = "repositories must follow the 'user/repo' pattern"
+	errParsingFlags      = "cannot not parse flags"
+	errResolvingPath     = "cannot resolve path"
+	invalidOutputWithExt = "cannot use output with file extension"
+	errDirDoesntExist    = "directory doesn't exist"
+	errCannotValidateDir = "cannot validate directory"
 )
 
 func New(args []string) (*entity.Config, error) {
 	if len(args) < 2 {
-		return nil, fmt.Errorf("Usage: user/repo [--dir] [--branch] [--include] [--exclude] [--output]")
+		return nil, fmt.Errorf("%s %s\n%s %s", errorHrd, missingArguments, hintHrd, missingArgumentsHint)
 	}
 
 	repo := args[1]
 	repoParts := strings.Split(repo, "/")
 	if len(repoParts) != 2 {
-		return nil, fmt.Errorf("error user/repo format: %s", repo)
+		return nil, fmt.Errorf("%s %s\n%s %s", errorHrd, invalidUserRepo, hintHrd, invalidUserRepoHint)
 	}
 
 	fs := flag.NewFlagSet("flags", flag.ContinueOnError)
@@ -33,7 +55,7 @@ func New(args []string) (*entity.Config, error) {
 
 	err := fs.Parse(args[2:])
 	if err != nil {
-		return nil, fmt.Errorf("error parsing flags: %v", err)
+		return nil, fmt.Errorf("%s %s\n%v", errorHrd, errParsingFlags, err)
 	}
 
 	include := strings.Split(*includeSuffixes, ",")
@@ -54,33 +76,34 @@ func New(args []string) (*entity.Config, error) {
 		resolvedDir += "/" + *dir
 	}
 
-	resolvedPath, err := resolvePath(*output)
+	resolvedOutput, err := resolvePath(*output)
 	if err != nil {
-		return nil, fmt.Errorf("cannot resolve path: %v", err)
+		return nil, fmt.Errorf("%s %s\n%v", errorHrd, errResolvingPath, err)
 	}
 
-	if resolvedPath != "" {
-		ext := filepath.Ext(resolvedPath)
+	if resolvedOutput != "" {
+		ext := filepath.Ext(resolvedOutput)
 		if ext != "" {
-			return nil, fmt.Errorf("invalid directory format: %s", *output)
+			return nil, fmt.Errorf("%s %s: %s\n", errorHrd, invalidOutputWithExt, *output)
 		}
 
-		_, err = os.Stat(resolvedPath)
+		_, err = os.Stat(resolvedOutput)
 		if err != nil {
 			if os.IsNotExist(err) {
-				return nil, fmt.Errorf("directory doesn't exist: %v", err)
+				return nil, fmt.Errorf("%s %s\n%v", errorHrd, errDirDoesntExist, err)
 			}
-			return nil, fmt.Errorf("error checking directory: %v", err)
+
+			return nil, fmt.Errorf("%s %s\n%v", errorHrd, errCannotValidateDir, err)
 		}
 	}
 
 	return &entity.Config{
-		Repo:    repoName,
-		Dir:     resolvedDir,
-		Url:     url,
-		Include: include,
-		Exclude: exclude,
-		Output:  resolvedPath,
+		RepoName: repoName,
+		Dir:      resolvedDir,
+		Url:      url,
+		Include:  include,
+		Exclude:  exclude,
+		Output:   resolvedOutput,
 	}, nil
 }
 
@@ -90,7 +113,7 @@ func resolvePath(path string) (string, error) {
 	if len(path) > 2 && path[:2] == "~/" {
 		home, err := os.UserHomeDir()
 		if err != nil {
-			return "", fmt.Errorf("reading home dir: %v", err)
+			return "", err
 		}
 		return filepath.Join(home, path[2:]), nil
 	}

@@ -6,4 +6,4 @@ Set Width 1200
 Set Height 600
 
 Type "./octomap docker/compose --dir internal --exclude test.go" Sleep 500ms
-Enter Sleep 4s
+Enter Sleep 5s

@@ -43,7 +43,7 @@ func New(cfg *entity.Config) model {
 func (m model) Init() tea.Cmd {
 	return tea.Batch(
 		m.spinner.Tick,
-		m.runPretendProcess(),
+		m.runProcess(),
 	)
 }
 
@@ -56,7 +56,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		var cmd tea.Cmd
 		m.spinner, cmd = m.spinner.Update(msg)
 		return m, cmd
-	case processFinishedMsg:
+	case processUpdateMsg:
 		up := entity.Update{
 			Description: msg.Description,
 			Err:         msg.Err,
@@ -66,7 +66,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if len(m.updates) > 6 {
 			m.updates = m.updates[1:]
 		}
-		return m, m.runPretendProcess()
+		return m, m.runProcess()
 	case processEndMsg:
 		m.complete = true
 		return m, tea.Quit
@@ -102,20 +102,15 @@ func (m model) View() string {
 }
 
 type (
-	processEndMsg      struct{}
-	processFinishedMsg entity.Update
+	processEndMsg    struct{}
+	processUpdateMsg entity.Update
 )
 
-func (m model) runPretendProcess() tea.Cmd {
+func (m model) runProcess() tea.Cmd {
 	return func() tea.Msg {
 		if len(m.updates) == 0 {
 			go repository.ProcessRepo(
-				m.config.Repo,
-				m.config.Url,
-				m.config.Dir,
-				m.config.Output,
-				m.config.Include,
-				m.config.Exclude,
+				m.config,
 				m.ch,
 				25*time.Millisecond,
 			)
@@ -126,7 +121,7 @@ func (m model) runPretendProcess() tea.Cmd {
 			return processEndMsg{}
 		}
 
-		return processFinishedMsg{
+		return processUpdateMsg{
 			Description: msg.Description,
 			Err:         msg.Err,
 		}
