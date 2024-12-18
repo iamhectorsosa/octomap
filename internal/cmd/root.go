@@ -8,9 +8,7 @@ import (
 )
 
 var (
-	repo    string
 	branch  string
-	url     string
 	dir     string
 	include []string
 	exclude []string
@@ -32,46 +30,16 @@ var rootCmd = &cobra.Command{
 	Args: func(cmd *cobra.Command, args []string) error {
 		return validateRootArgs(args)
 	},
-	PreRunE: func(cmd *cobra.Command, args []string) error {
-		// Help menu
-		if len(args) < 1 {
-			return nil
-		}
-
-		// GitHub Repository Details
-		slug := args[0]
-		if err := validateSlug(slug); err != nil {
-			return err
-		}
-		if err := validateBranch(branch); err != nil {
-			return err
-		}
-		repo, url, dir = createRepoDetails(slug, branch, dir)
-
-		// Output Directory
-		resolvedOutput, err := resolveOutput(output)
-		if err != nil {
-			return err
-		}
-		if err := validateOutput(resolvedOutput); err != nil {
-			return err
-		}
-		output = resolvedOutput
-		return nil
-	},
 	RunE: func(cmd *cobra.Command, args []string) error {
-		if len(args) == 0 {
+		if len(args) < 1 {
 			cmd.Help()
 			return nil
 		}
 
-		cfg := &entity.Config{
-			RepoName: repo,
-			Url:      url,
-			Dir:      dir,
-			Include:  include,
-			Exclude:  exclude,
-			Output:   output,
+		slug := args[0]
+		cfg, err := entity.NewConfig(slug, branch, dir, output, include, exclude)
+		if err != nil {
+			return err
 		}
 
 		if _, err := tea.NewProgram(model.New(cfg)).Run(); err != nil {

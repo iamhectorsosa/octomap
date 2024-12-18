@@ -1,4 +1,4 @@
-package cmd
+package entity
 
 import (
 	"fmt"
@@ -8,31 +8,16 @@ import (
 )
 
 const (
-	MAX_NUM_ARGS   = 1
 	GITHUB_ARCHIVE = "https://github.com/%s/%s/archive/refs/heads/%s.tar.gz"
 
-	invalidNumArgs = "accepts at most %d arg(s), received %d\n"
-
 	invalidUserRepoTxt   = "invalid [user/repo] input, received %q\n"
-	invalidBranchName    = "invalid branch flag, received %q\n"
-	invalidOutputWithExt = "invalid output flag, cannot contain extension, received %q\n"
+	invalidBranchName    = "invalid branch, received %q\n"
+	invalidOutputWithExt = "invalid output, cannot contain extension, received %q\n"
 
 	errHomeDirectory    = "failed to get user home directory, %v\n"
 	errOutputDoesntExit = "output path does not exist, received %q\n%v\n"
 	errOutputAccess     = "output path cannot be accessed, received %q\n%v\n"
 )
-
-func validateRootArgs(args []string) error {
-	if len(args) < MAX_NUM_ARGS {
-		return nil
-	}
-
-	if len(args) > MAX_NUM_ARGS {
-		return fmt.Errorf(invalidNumArgs, MAX_NUM_ARGS, len(args))
-	}
-
-	return nil
-}
 
 func validateSlug(slug string) error {
 	validatedSlug := strings.Split(slug, "/")

@@ -45,7 +45,7 @@ func ProcessRepo(cfg *entity.Config, ch chan<- entity.Update, delay time.Duratio
 		return
 	}
 
-	filePath := fmt.Sprintf("%s%s.json", cfg.RepoName, time.Now().Format("20060102_150405"))
+	filePath := fmt.Sprintf("%s%s.json", cfg.Repo, time.Now().Format("20060102_150405"))
 
 	if cfg.Output != "" {
 		filePath = fmt.Sprintf("%s/%s", cfg.Output, filePath)
