@@ -112,7 +112,7 @@ func (m model) runProcess() tea.Cmd {
 			go repository.ProcessRepo(
 				m.config,
 				m.ch,
-				25*time.Millisecond,
+				5*time.Millisecond,
 			)
 		}
 
