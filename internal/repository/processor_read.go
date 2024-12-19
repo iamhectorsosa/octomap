@@ -8,8 +8,6 @@ import (
 )
 
 func (p *Processor) read(reader io.Reader, stagger time.Duration) error {
-	p.update("processing repository data", nil)
-
 	tarReader, err := NewTarGzReader(reader)
 	if err != nil {
 		return err
