@@ -27,13 +27,13 @@ type model struct {
 	complete  bool
 }
 
-func New(cfg *entity.Config) model {
+func New(config *entity.Config) model {
 	sp := spinner.New()
 	sp.Spinner = spinner.Dot
 	sp.Style = lipgloss.NewStyle().Foreground(lipgloss.Color("205"))
 
 	return model{
-		config:    cfg,
+		config:    config,
 		spinner:   sp,
 		updates:   []entity.Update{},
 		updatesCh: make(chan entity.Update),
@@ -41,7 +41,8 @@ func New(cfg *entity.Config) model {
 }
 
 func (m model) Init() tea.Cmd {
-	go repository.ProcessRepo(m.config, m.updatesCh, 5*time.Millisecond)
+	processor := repository.NewProcessor(m.config)
+	go processor.Process(m.updatesCh, 5*time.Millisecond)
 	return tea.Batch(m.spinner.Tick, m.updateProcess())
 }
 

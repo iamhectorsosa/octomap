@@ -37,12 +37,12 @@ var rootCmd = &cobra.Command{
 		}
 
 		slug := args[0]
-		cfg, err := entity.NewConfig(slug, branch, dir, output, include, exclude)
+		config, err := entity.NewConfig(slug, branch, dir, output, include, exclude)
 		if err != nil {
 			return err
 		}
 
-		if _, err := tea.NewProgram(model.New(cfg)).Run(); err != nil {
+		if _, err := tea.NewProgram(model.New(config)).Run(); err != nil {
 			return err
 		}
 
