@@ -18,6 +18,10 @@ import (
 func ProcessRepo(cfg *entity.Config, ch chan<- entity.Update, delay time.Duration) {
 	defer close(ch)
 
+	ch <- entity.Update{
+		Description: fmt.Sprintf("initiating request: %s", cfg.Url),
+	}
+
 	resp, err := http.Get(cfg.Url)
 	if err != nil {
 		ch <- entity.Update{
@@ -34,6 +38,10 @@ func ProcessRepo(cfg *entity.Config, ch chan<- entity.Update, delay time.Duratio
 			Err:         fmt.Errorf("Status code: %d", resp.StatusCode),
 		}
 		return
+	}
+
+	ch <- entity.Update{
+		Description: "processing repository data",
 	}
 
 	data, err := TarballReader(cfg, resp.Body, ch, delay)
@@ -73,7 +81,6 @@ func ProcessRepo(cfg *entity.Config, ch chan<- entity.Update, delay time.Duratio
 
 	ch <- entity.Update{
 		Description: fmt.Sprintf("generating report: %s", filePath),
-		Err:         nil,
 	}
 }
 

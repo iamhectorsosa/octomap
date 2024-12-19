@@ -5,17 +5,17 @@ import (
 )
 
 const (
-	MAX_NUM_ARGS   = 1
+	maxNumArgs     = 1
 	invalidNumArgs = "accepts at most %d arg(s), received %d\n"
 )
 
 func validateRootArgs(args []string) error {
-	if len(args) < MAX_NUM_ARGS {
+	if len(args) < maxNumArgs {
 		return nil
 	}
 
-	if len(args) > MAX_NUM_ARGS {
-		return fmt.Errorf(invalidNumArgs, MAX_NUM_ARGS, len(args))
+	if len(args) > maxNumArgs {
+		return fmt.Errorf(invalidNumArgs, maxNumArgs, len(args))
 	}
 
 	return nil

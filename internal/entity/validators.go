@@ -8,7 +8,7 @@ import (
 )
 
 const (
-	GITHUB_ARCHIVE = "https://github.com/%s/%s/archive/refs/heads/%s.tar.gz"
+	githubArchive = "https://github.com/%s/%s/archive/refs/heads/%s.tar.gz"
 
 	invalidUserRepoTxt   = "invalid [user/repo] input, received %q\n"
 	invalidBranchName    = "invalid branch, received %q\n"
@@ -44,7 +44,7 @@ func createRepoDetails(slug string, branch, inputDir string) (repo, url, dir str
 	user := validatedSlug[0]
 	repo = validatedSlug[1]
 
-	url = fmt.Sprintf(GITHUB_ARCHIVE, user, repo, branch)
+	url = fmt.Sprintf(githubArchive, user, repo, branch)
 
 	dir = fmt.Sprintf("%s-%s", repo, branch)
 	if inputDir != "" {
@@ -91,5 +91,5 @@ func resolveOutput(output string) (string, error) {
 		return "", fmt.Errorf(errHomeDirectory, err)
 	}
 
-	return filepath.Join(home, expandedOutput[:2]), nil
+	return filepath.Join(home, expandedOutput[2:]), nil
 }
