@@ -4,29 +4,22 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-
-	"github.com/iamhectorsosa/octomap/internal/entity"
 )
 
-func (p *Processor) download(updatesCh chan<- entity.Update) (io.ReadCloser, error) {
-	updatesCh <- entity.Update{
-		Description: fmt.Sprintf("downloading: %s", p.config.Url),
-	}
+func (p *Processor) download() (io.ReadCloser, error) {
+	p.update(fmt.Sprintf("downloading: %s", p.config.Url), nil)
 
 	resp, err := http.Get(p.config.Url)
 	if err != nil {
-		updatesCh <- entity.Update{
-			Description: "Request error getting tarball",
-			Err:         err,
-		}
+		p.update("error getting tarball", err)
 		return nil, err
 	}
 
 	if resp.StatusCode != http.StatusOK {
-		updatesCh <- entity.Update{
-			Description: fmt.Sprintf("Request error getting tarbal with status code: %d", resp.StatusCode),
-			Err:         fmt.Errorf("Status code: %d", resp.StatusCode),
-		}
+		p.update(
+			fmt.Sprintf("error getting tarball, status code: %d", resp.StatusCode),
+			fmt.Errorf("Status code: %d", resp.StatusCode),
+		)
 		return nil, fmt.Errorf("Status code: %d", resp.StatusCode)
 	}
 

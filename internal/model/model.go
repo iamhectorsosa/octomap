@@ -41,8 +41,8 @@ func New(config *entity.Config) model {
 }
 
 func (m model) Init() tea.Cmd {
-	processor := repository.NewProcessor(m.config)
-	go processor.Process(m.updatesCh, 5*time.Millisecond)
+	processor := repository.NewProcessor(m.config, m.updatesCh)
+	go processor.Process(5 * time.Millisecond)
 	return tea.Batch(m.spinner.Tick, m.updateProcess())
 }
 
