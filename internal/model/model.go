@@ -2,6 +2,7 @@ package model
 
 import (
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/charmbracelet/bubbles/spinner"
@@ -24,7 +25,6 @@ type model struct {
 	updates  []entity.Update
 	spinner  spinner.Model
 	complete bool
-	quitting bool
 }
 
 func New(cfg *entity.Config) model {
@@ -41,16 +41,20 @@ func New(cfg *entity.Config) model {
 }
 
 func (m model) Init() tea.Cmd {
+	go repository.ProcessRepo(
+		m.config,
+		m.ch,
+		5*time.Millisecond,
+	)
 	return tea.Batch(
 		m.spinner.Tick,
-		m.runProcess(),
+		m.updateProcess(),
 	)
 }
 
 func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
-		m.quitting = true
 		return m, tea.Quit
 	case spinner.TickMsg:
 		var cmd tea.Cmd
@@ -66,7 +70,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if len(m.updates) > 6 {
 			m.updates = m.updates[1:]
 		}
-		return m, m.runProcess()
+		return m, m.updateProcess()
 	case processEndMsg:
 		m.complete = true
 		return m, tea.Quit
@@ -76,29 +80,32 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (m model) View() string {
-	s := "\n"
+	var s strings.Builder
+	s.WriteString("\n")
+
 	if !m.complete {
-		s += m.spinner.View()
+		s.WriteString(m.spinner.View())
 	} else {
-		s += "  "
+		s.WriteString("  ")
 	}
-	s += "🐙 Mapping repository...\n\n"
+
+	s.WriteString("🐙 Mapping repository...\n\n")
 
 	for _, res := range m.updates {
 		mark := checkMark
 		if res.Err != nil {
 			mark = errorMark
 		}
-		s += fmt.Sprintf("%s %s\n", mark, res.Description)
+		s.WriteString(fmt.Sprintf("%s %s\n", mark, res.Description))
 	}
 
 	if !m.complete {
-		s += helpStyle("\nPress any key to exit")
+		s.WriteString(helpStyle("\nPress any key to exit"))
 	} else {
-		s += "\nProcess finished!\n\n"
+		s.WriteString("\nProcess finished!\n\n")
 	}
 
-	return mainStyle.Render(s)
+	return mainStyle.Render(s.String())
 }
 
 type (
@@ -106,24 +113,12 @@ type (
 	processUpdateMsg entity.Update
 )
 
-func (m model) runProcess() tea.Cmd {
+func (m model) updateProcess() tea.Cmd {
 	return func() tea.Msg {
-		if len(m.updates) == 0 {
-			go repository.ProcessRepo(
-				m.config,
-				m.ch,
-				5*time.Millisecond,
-			)
+		for update := range m.ch {
+			return processUpdateMsg(update)
 		}
 
-		msg, ok := <-m.ch
-		if !ok {
-			return processEndMsg{}
-		}
-
-		return processUpdateMsg{
-			Description: msg.Description,
-			Err:         msg.Err,
-		}
+		return processEndMsg{}
 	}
 }
