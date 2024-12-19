@@ -20,11 +20,11 @@ var (
 )
 
 type model struct {
-	config   *entity.Config
-	ch       chan entity.Update
-	updates  []entity.Update
-	spinner  spinner.Model
-	complete bool
+	config    *entity.Config
+	updatesCh chan entity.Update
+	updates   []entity.Update
+	spinner   spinner.Model
+	complete  bool
 }
 
 func New(cfg *entity.Config) model {
@@ -33,23 +33,31 @@ func New(cfg *entity.Config) model {
 	sp.Style = lipgloss.NewStyle().Foreground(lipgloss.Color("205"))
 
 	return model{
-		config:  cfg,
-		spinner: sp,
-		updates: []entity.Update{},
-		ch:      make(chan entity.Update),
+		config:    cfg,
+		spinner:   sp,
+		updates:   []entity.Update{},
+		updatesCh: make(chan entity.Update),
 	}
 }
 
 func (m model) Init() tea.Cmd {
-	go repository.ProcessRepo(
-		m.config,
-		m.ch,
-		5*time.Millisecond,
-	)
-	return tea.Batch(
-		m.spinner.Tick,
-		m.updateProcess(),
-	)
+	go repository.ProcessRepo(m.config, m.updatesCh, 5*time.Millisecond)
+	return tea.Batch(m.spinner.Tick, m.updateProcess())
+}
+
+type (
+	processEndMsg    struct{}
+	processUpdateMsg entity.Update
+)
+
+func (m model) updateProcess() tea.Cmd {
+	return func() tea.Msg {
+		update, ok := <-m.updatesCh
+		if !ok {
+			return processEndMsg{}
+		}
+		return processUpdateMsg(update)
+	}
 }
 
 func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
@@ -61,12 +69,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.spinner, cmd = m.spinner.Update(msg)
 		return m, cmd
 	case processUpdateMsg:
-		up := entity.Update{
-			Description: msg.Description,
-			Err:         msg.Err,
-		}
-
-		m.updates = append(m.updates, up)
+		m.updates = append(m.updates, entity.Update(msg))
 		if len(m.updates) > 6 {
 			m.updates = m.updates[1:]
 		}
@@ -106,19 +109,4 @@ func (m model) View() string {
 	}
 
 	return mainStyle.Render(s.String())
-}
-
-type (
-	processEndMsg    struct{}
-	processUpdateMsg entity.Update
-)
-
-func (m model) updateProcess() tea.Cmd {
-	return func() tea.Msg {
-		for update := range m.ch {
-			return processUpdateMsg(update)
-		}
-
-		return processEndMsg{}
-	}
 }
