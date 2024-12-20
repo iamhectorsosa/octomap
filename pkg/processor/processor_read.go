@@ -24,6 +24,14 @@ func (p *Processor) read(reader io.Reader, stagger time.Duration) error {
 		if err != nil {
 			return err
 		}
+
+		if hdr.IsDir {
+			p.dirCount++
+		}
+		if hdr.IsFile {
+			p.fileCount++
+		}
+
 		if hdr.IsDir || !strings.HasPrefix(hdr.Name, p.config.Dir) {
 			continue
 		}
@@ -62,8 +70,9 @@ func (p *Processor) read(reader io.Reader, stagger time.Duration) error {
 		for i, part := range pathParts {
 			if i == len(pathParts)-1 {
 				current[part] = content
-				time.Sleep(stagger)
+				p.dataFileCount++
 				p.update(fmt.Sprintf("mapped: %s", relativePath))
+				time.Sleep(stagger)
 				break
 			}
 

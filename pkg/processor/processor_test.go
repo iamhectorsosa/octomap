@@ -65,7 +65,7 @@ func TestProcess(t *testing.T) {
 				Include: []string{".go"},
 			},
 			wantErr:     false,
-			wantUpdates: 3, // download + mapping + save updates
+			wantUpdates: 5, // download + mapping + 2 stats + save updates
 			wantFiles:   []string{"file1.go"},
 		},
 		{
@@ -77,7 +77,7 @@ func TestProcess(t *testing.T) {
 				Output: tmpDir,
 			},
 			wantErr:     false,
-			wantUpdates: 4, // download + 2 mappings + save updates
+			wantUpdates: 6, // download + 2 mappings + 2 stats + save updates
 			wantFiles:   []string{"file1.go", "file2.txt"},
 		},
 	}

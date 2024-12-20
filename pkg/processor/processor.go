@@ -1,14 +1,18 @@
 package processor
 
 import (
+	"fmt"
 	"time"
 )
 
 func New(config *Config, ch chan<- Update) *Processor {
 	return &Processor{
-		config: config,
-		data:   make(RepositoryData),
-		ch:     ch,
+		config:        config,
+		data:          make(RepositoryData),
+		ch:            ch,
+		dirCount:      0,
+		fileCount:     0,
+		dataFileCount: 0,
 	}
 }
 
@@ -28,6 +32,9 @@ func (p *Processor) Process(stagger time.Duration) (RepositoryData, error) {
 		p.updateError(err)
 		return nil, err
 	}
+
+	p.update(fmt.Sprintf("found: %d directories and %d files", p.dirCount, p.fileCount))
+	p.update(fmt.Sprintf("prepared: %d out of %d files for report", p.dataFileCount, p.fileCount))
 
 	if !p.config.Stdout {
 		if err := p.save(); err != nil {

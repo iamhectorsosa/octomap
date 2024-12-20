@@ -13,8 +13,9 @@ type TarGzReader struct {
 }
 
 type ArchiveHeader struct {
-	Name  string
-	IsDir bool
+	Name   string
+	IsDir  bool
+	IsFile bool
 }
 
 func NewTarGzReader(r io.Reader) (*TarGzReader, error) {
@@ -38,8 +39,9 @@ func (r *TarGzReader) ReadNext() (*ArchiveHeader, error) {
 		return nil, err
 	}
 	return &ArchiveHeader{
-		Name:  header.Name,
-		IsDir: header.Typeflag == tar.TypeDir,
+		Name:   header.Name,
+		IsDir:  header.Typeflag == tar.TypeDir,
+		IsFile: header.Typeflag == tar.TypeReg,
 	}, nil
 }
 

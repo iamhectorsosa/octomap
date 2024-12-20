@@ -18,7 +18,10 @@ type Update struct {
 }
 
 type Processor struct {
-	config *Config
-	data   RepositoryData
-	ch     chan<- Update
+	config        *Config
+	data          RepositoryData
+	ch            chan<- Update
+	dirCount      int
+	fileCount     int
+	dataFileCount int
 }
