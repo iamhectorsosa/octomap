@@ -1,14 +1,16 @@
-package repository
+package processor
 
 import (
 	"fmt"
 	"io"
 	"strings"
 	"time"
+
+	"github.com/iamhectorsosa/octomap/pkg/archive"
 )
 
 func (p *Processor) read(reader io.Reader, stagger time.Duration) error {
-	tarReader, err := NewTarGzReader(reader)
+	tarReader, err := archive.NewTarGzReader(reader)
 	if err != nil {
 		return err
 	}

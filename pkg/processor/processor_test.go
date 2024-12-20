@@ -1,4 +1,4 @@
-package repository
+package processor
 
 import (
 	"archive/tar"
@@ -12,7 +12,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/iamhectorsosa/octomap/internal/entity"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -50,7 +49,7 @@ func TestProcess(t *testing.T) {
 	defer os.RemoveAll(tmpDir)
 
 	tests := []struct {
-		config      *entity.Config
+		config      *Config
 		name        string
 		wantFiles   []string
 		wantUpdates int
@@ -58,7 +57,7 @@ func TestProcess(t *testing.T) {
 	}{
 		{
 			name: "successful processing",
-			config: &entity.Config{
+			config: &Config{
 				Repo:    "test-repo",
 				Url:     server.URL,
 				Dir:     "repo-main",
@@ -71,7 +70,7 @@ func TestProcess(t *testing.T) {
 		},
 		{
 			name: "no file filtering",
-			config: &entity.Config{
+			config: &Config{
 				Repo:   "test-repo",
 				Url:    server.URL,
 				Dir:    "repo-main",
@@ -85,11 +84,11 @@ func TestProcess(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			updateCh := make(chan entity.Update)
-			processor := NewProcessor(tt.config, updateCh)
+			updateCh := make(chan Update)
+			processor := New(tt.config, updateCh)
 
 			// Collect updates in background
-			var updates []entity.Update
+			var updates []Update
 			done := make(chan bool)
 			go func() {
 				for update := range updateCh {
@@ -99,7 +98,7 @@ func TestProcess(t *testing.T) {
 			}()
 
 			// Run processor
-			err := processor.Process(time.Millisecond)
+			_, err := processor.Process(time.Millisecond)
 			if tt.wantErr {
 				assert.Error(t, err)
 				return

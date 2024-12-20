@@ -1,4 +1,4 @@
-package repository
+package archive
 
 import (
 	"archive/tar"

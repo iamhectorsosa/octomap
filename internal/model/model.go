@@ -8,8 +8,7 @@ import (
 	"github.com/charmbracelet/bubbles/spinner"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
-	"github.com/iamhectorsosa/octomap/internal/entity"
-	"github.com/iamhectorsosa/octomap/internal/repository"
+	"github.com/iamhectorsosa/octomap/pkg/processor"
 )
 
 var (
@@ -20,14 +19,14 @@ var (
 )
 
 type model struct {
-	config    *entity.Config
-	updatesCh chan entity.Update
-	updates   []entity.Update
+	config    *processor.Config
+	updatesCh chan processor.Update
+	updates   []processor.Update
 	spinner   spinner.Model
 	complete  bool
 }
 
-func New(config *entity.Config) model {
+func New(config *processor.Config) model {
 	sp := spinner.New()
 	sp.Spinner = spinner.Dot
 	sp.Style = lipgloss.NewStyle().Foreground(lipgloss.Color("205"))
@@ -35,20 +34,20 @@ func New(config *entity.Config) model {
 	return model{
 		config:    config,
 		spinner:   sp,
-		updates:   []entity.Update{},
-		updatesCh: make(chan entity.Update),
+		updates:   []processor.Update{},
+		updatesCh: make(chan processor.Update),
 	}
 }
 
 func (m model) Init() tea.Cmd {
-	processor := repository.NewProcessor(m.config, m.updatesCh)
-	go processor.Process(5 * time.Millisecond)
+	processor := processor.New(m.config, m.updatesCh)
+	go processor.Process(time.Millisecond)
 	return tea.Batch(m.spinner.Tick, m.updateProcess())
 }
 
 type (
 	processEndMsg    struct{}
-	processUpdateMsg entity.Update
+	processUpdateMsg processor.Update
 )
 
 func (m model) updateProcess() tea.Cmd {
@@ -70,7 +69,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.spinner, cmd = m.spinner.Update(msg)
 		return m, cmd
 	case processUpdateMsg:
-		m.updates = append(m.updates, entity.Update(msg))
+		m.updates = append(m.updates, processor.Update(msg))
 		if len(m.updates) > 6 {
 			m.updates = m.updates[1:]
 		}
