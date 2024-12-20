@@ -28,6 +28,12 @@ Ideal for developers and data scientists looking to feed repository data directl
 go install github.com/iamhectorsosa/octomap@latest
 ```
 
+If you need to skip module proxy, you can use:
+
+```bash
+GOPROXY=direct go install github.com/iamhectorsosa/octomap@latest
+```
+
 ### From Source
 
 1. Clone the repository:
