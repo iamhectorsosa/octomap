@@ -14,7 +14,8 @@ func NewConfig(slug, branch, dir, output string, stdout bool, include, exclude [
 
 	// Output Directory
 	if !stdout {
-		resolvedOutput, err := resolveOutput(output)
+		var err error
+		resolvedOutput, err = resolveOutput(output)
 		if err != nil {
 			return nil, err
 		}

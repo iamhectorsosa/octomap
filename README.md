@@ -8,10 +8,12 @@ Ideal for developers and data scientists looking to feed repository data directl
 
 ## Quick Overview
 
-- Download a GitHub repository's contents
-- Filter files by branch, directories and/or extensions
-- Convert the repository structure into a clean, hierarchical JSON format
-- Prepare code repositories for AI-powered processing and analysis
+- **Structured JSON Output**: Convert repositories into JSON for further analysis or processing.
+- **Pipeline Integration**: Use the `--stdout` flag to output results directly to `stdout`, enabling seamless integration with other tools.
+- **Configurable Processing**:
+  - Include or exclude specific file types.
+  - Specify target branches and directories.
+- **Reusable Logic**: Core logic is modularized in the `pkg` directory for easy reuse in other projects.
 
 ## Requirements
 
@@ -74,6 +76,9 @@ octomap user/repo --exclude .mod,.sum
 
 # Specify a custom output directory
 octomap user/repo --output ~/documents
+
+# Print results to `stdout`
+octomap user/repo --stdout
 ```
 
 ### Flags
@@ -83,6 +88,7 @@ octomap user/repo --output ~/documents
 - `--include`: Comma-separated list of included file extensions
 - `--exclude`: Comma-separated list of excluded file extensions
 - `--output`: Output directory for the generated JSON file
+- `--stdout`: Print results to `stdout`. When this flag is used, the `output` flag is ignored.
 
 ## Development
 
