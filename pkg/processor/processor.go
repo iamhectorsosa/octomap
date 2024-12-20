@@ -19,16 +19,19 @@ func (p *Processor) Process(stagger time.Duration) (RepositoryData, error) {
 
 	reader, err := p.download()
 	if err != nil {
+		p.updateError(err)
 		return nil, err
 	}
 	defer reader.Close()
 
 	if err := p.read(reader, stagger); err != nil {
+		p.updateError(err)
 		return nil, err
 	}
 
 	if !p.config.Stdout {
 		if err := p.save(); err != nil {
+			p.updateError(err)
 			return nil, err
 		}
 	}

@@ -63,7 +63,7 @@ func (p *Processor) read(reader io.Reader, stagger time.Duration) error {
 			if i == len(pathParts)-1 {
 				current[part] = content
 				time.Sleep(stagger)
-				p.update(fmt.Sprintf("mapping: %s", relativePath), nil)
+				p.update(fmt.Sprintf("mapped: %s", relativePath))
 				break
 			}
 
@@ -74,7 +74,7 @@ func (p *Processor) read(reader io.Reader, stagger time.Duration) error {
 			var ok bool
 			current, ok = current[part].(map[string]interface{})
 			if !ok {
-				return fmt.Errorf("Unexpected structure found on: %s", hdr.Name)
+				return fmt.Errorf("unexpected structure found on: %s", hdr.Name)
 			}
 
 		}

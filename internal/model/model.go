@@ -19,6 +19,7 @@ var (
 )
 
 type model struct {
+	err       error
 	config    *processor.Config
 	updatesCh chan processor.Update
 	updates   []processor.Update
@@ -46,17 +47,23 @@ func (m model) Init() tea.Cmd {
 }
 
 type (
-	processEndMsg    struct{}
-	processUpdateMsg processor.Update
+	errMsg    struct{ err error }
+	updateMsg processor.Update
+	endMsg    struct{}
 )
+
+func (e errMsg) Error() string { return e.err.Error() }
 
 func (m model) updateProcess() tea.Cmd {
 	return func() tea.Msg {
 		update, ok := <-m.updatesCh
 		if !ok {
-			return processEndMsg{}
+			return endMsg{}
 		}
-		return processUpdateMsg(update)
+		if update.Err != nil {
+			return errMsg{update.Err}
+		}
+		return updateMsg(update)
 	}
 }
 
@@ -68,13 +75,16 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		var cmd tea.Cmd
 		m.spinner, cmd = m.spinner.Update(msg)
 		return m, cmd
-	case processUpdateMsg:
+	case errMsg:
+		m.err = msg
+		return m, tea.Quit
+	case updateMsg:
 		m.updates = append(m.updates, processor.Update(msg))
 		if len(m.updates) > 6 {
 			m.updates = m.updates[1:]
 		}
 		return m, m.updateProcess()
-	case processEndMsg:
+	case endMsg:
 		m.complete = true
 		return m, tea.Quit
 	}
@@ -86,26 +96,25 @@ func (m model) View() string {
 	var s strings.Builder
 	s.WriteString("\n")
 
-	if !m.complete {
-		s.WriteString(m.spinner.View())
-	} else {
+	if m.complete || m.err != nil {
 		s.WriteString("  ")
+	} else {
+		s.WriteString(m.spinner.View())
 	}
 
 	s.WriteString("🐙 Mapping repository...\n\n")
-
 	for _, res := range m.updates {
-		mark := checkMark
-		if res.Err != nil {
-			mark = errorMark
-		}
-		s.WriteString(fmt.Sprintf("%s %s\n", mark, res.Description))
+		s.WriteString(fmt.Sprintf("%s %s\n", checkMark, res.Description))
 	}
 
-	if !m.complete {
-		s.WriteString(helpStyle("\nPress any key to exit"))
-	} else {
+	if m.err != nil {
+		s.WriteString(fmt.Sprintf("%s %s\n", errorMark, m.err.Error()))
+	}
+
+	if m.complete || m.err != nil {
 		s.WriteString("\nProcess finished!\n\n")
+	} else {
+		s.WriteString(helpStyle("\nPress any key to exit"))
 	}
 
 	return mainStyle.Render(s.String())

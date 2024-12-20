@@ -14,18 +14,16 @@ func (p *Processor) save() error {
 
 	f, err := os.Create(filePath)
 	if err != nil {
-		p.update(fmt.Sprintf("output file error: %v", err), err)
-		return err
+		return fmt.Errorf("unable to create file: %q\n %v", filePath, err)
 	}
 	defer f.Close()
 
 	encoder := json.NewEncoder(f)
 	encoder.SetIndent("", "  ")
 	if err := encoder.Encode(p.data); err != nil {
-		p.update(fmt.Sprintf("encoding file error: %v", err), err)
-		return err
+		return fmt.Errorf("encoding file error: %v", err)
 	}
 
-	p.update(fmt.Sprintf("generating report: %s", filePath), nil)
+	p.update(fmt.Sprintf("generated report: %s", filePath))
 	return nil
 }

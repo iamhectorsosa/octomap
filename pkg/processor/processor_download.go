@@ -7,20 +7,15 @@ import (
 )
 
 func (p *Processor) download() (io.ReadCloser, error) {
-	p.update(fmt.Sprintf("downloading: %s", p.config.Url), nil)
+	p.update(fmt.Sprintf("downloading: %s", p.config.Url))
 
 	resp, err := http.Get(p.config.Url)
 	if err != nil {
-		p.update("error getting tarball", err)
-		return nil, err
+		return nil, fmt.Errorf("request error: %v", err)
 	}
 
 	if resp.StatusCode != http.StatusOK {
-		p.update(
-			fmt.Sprintf("error getting tarball, status code: %d", resp.StatusCode),
-			fmt.Errorf("Status code: %d", resp.StatusCode),
-		)
-		return nil, fmt.Errorf("Status code: %d", resp.StatusCode)
+		return nil, fmt.Errorf("unexpected status code: %d", resp.StatusCode)
 	}
 
 	return resp.Body, nil
